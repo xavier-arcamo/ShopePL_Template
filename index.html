@@ -48,7 +48,7 @@
       border: 1px solid #a5f3fc;
     }
 
-    .tabs { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
     .tab-btn {
       border: 1px solid var(--border);
       background: var(--card);
@@ -131,6 +131,7 @@
 
     .help summary { cursor: pointer; font-weight: 700; }
     .muted { color: var(--muted); font-size: 0.88rem; }
+    .warning-note { color: #92400e; background: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.6rem; margin-top: 0.6rem; }
 
     .calc-grid {
       display: grid;
@@ -156,6 +157,7 @@
     <div class="tabs" role="tablist" aria-label="Main tabs">
       <button class="tab-btn active" role="tab" aria-selected="true" data-tab="templatesTab">Email Templates</button>
       <button class="tab-btn" role="tab" aria-selected="false" data-tab="hstTab">Ontario GST/HST Calculator</button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="dataTab">Data Management</button>
     </div>
 
     <section id="templatesTab" class="tab-panel active" role="tabpanel">
@@ -184,11 +186,6 @@
             <button id="saveTemplateBtn" class="primary">Save Template</button>
             <button id="resetDefaultsBtn">Reset to Default Templates</button>
           </div>
-          <div class="button-row">
-            <button id="exportBtn">Export Templates</button>
-            <button id="importBtn">Import Templates</button>
-            <input id="importFile" type="file" accept="application/json" hidden />
-          </div>
 
           <div class="field">
             <label for="templateNotes">Template Notes (Internal)</label>
@@ -201,7 +198,7 @@
               <li>Select a template from the tree, then use placeholder fields to personalize.</li>
               <li><strong>[Name]</strong> is linked to Customer Name automatically.</li>
               <li>Use toolbar buttons to format the email body.</li>
-              <li>Use Export/Import to back up or transfer templates.</li>
+              <li>Use Data Management to export JSON backups regularly.</li>
             </ul>
           </details>
         </aside>
@@ -259,216 +256,240 @@
         <p class="muted">Ontario HST default is 13%. Please confirm current tax rules if needed.</p>
       </div>
     </section>
+
+    <section id="dataTab" class="tab-panel" role="tabpanel">
+      <div class="card">
+        <h2 style="margin-top:0;">Backup & Restore</h2>
+        <p class="warning-note"><strong>Export your templates regularly to avoid losing customizations if browser data is cleared.</strong></p>
+
+        <div class="button-row">
+          <button id="exportTemplatesBtn">Export Templates JSON</button>
+          <button id="importTemplatesBtn">Import Templates JSON</button>
+          <input id="importTemplatesFile" type="file" accept="application/json" hidden />
+        </div>
+
+        <div class="button-row">
+          <button id="exportConfigBtn">Export Config JSON</button>
+          <button id="importConfigBtn">Import Config JSON</button>
+          <input id="importConfigFile" type="file" accept="application/json" hidden />
+        </div>
+
+        <div class="button-row">
+          <button id="exportBackupBtn" class="primary">Export Full Backup</button>
+          <button id="importBackupBtn">Import Full Backup</button>
+          <input id="importBackupFile" type="file" accept="application/json" hidden />
+        </div>
+
+        <div class="button-row">
+          <button id="resetTemplatesBtn" class="danger">Reset Templates to Defaults</button>
+          <button id="resetConfigBtn" class="danger">Reset Config to Defaults</button>
+        </div>
+
+        <div class="field">
+          <label>Last Export Timestamps</label>
+          <div class="muted" id="lastTemplatesExport">Templates: Never</div>
+          <div class="muted" id="lastConfigExport">Config: Never</div>
+          <div class="muted" id="lastBackupExport">Full Backup: Never</div>
+        </div>
+      </div>
+    </section>
   </div>
 
 <script>
-// ======================= Default Data =======================
-const DEFAULT_DATA = {
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function templateNode(name, subject, notes, body){ return { id: uid(), type: 'template', name, subject, body, notes }; }
+
+const FILE_VERSION = '1.0';
+const SCHEMA_TEMPLATES = 'makerspace-email-templates';
+const SCHEMA_CONFIG = 'makerspace-email-config';
+const SCHEMA_BACKUP = 'makerspace-email-backup';
+
+const DEFAULT_TEMPLATES = {
   nodes: [
     { id: uid(), type: 'category', name: 'Makerspace Booking', children: [
-      templateNode('Cricut - Booking Confirmation', 'Makerspace Booking > Cricut', 'Cricut appointment confirmation',
-        'Hello [Name],<br><br>Your Cricut booking is confirmed for [Date] at [Appointment Time] at [Branch]. Please bring your design files and materials if required.<br><br>Thank you,<br>[Staff Name]'),
-      templateNode('3D Printing - Appointment Confirmation', 'Makerspace Booking > 3D Printing', 'Appointment and file prep reminder',
-        'Hello [Name],<br><br>Your 3D printing appointment is confirmed for [Date] at [Appointment Time]. Please ensure your [Equipment] files are ready before your visit.<br><br>Sincerely,<br>[Staff Name]'),
-      templateNode('Digitization - Reminder', 'Makerspace Booking > Digitization', 'Digitization appointment reminder',
-        'Hello [Name],<br><br>This is a reminder for your digitization appointment on [Date] at [Appointment Time] at [Branch]. Please bring all items and storage media needed.<br><br>Kind regards,<br>[Staff Name]'),
-      templateNode('Large Format Printing - File Requirements', 'Makerspace Booking > Large Format Printing', 'File requirements reminder',
-        'Hello [Name],<br><br>Before your large format printing appointment, please verify your file size, resolution, and format. Your appointment is scheduled for [Date] at [Appointment Time].<br><br>Thank you,<br>[Staff Name]'),
-      templateNode('Sublimation - Appointment Confirmation', 'Makerspace Booking > Sublimation', 'Sublimation appointment confirmation',
-        'Hello [Name],<br><br>Your sublimation appointment is confirmed for [Date] at [Appointment Time] at [Branch]. We look forward to helping with your project.<br><br>Best regards,<br>[Staff Name]')
+      templateNode('Cricut - Booking Confirmation', 'Makerspace Booking > Cricut', 'Cricut appointment confirmation', 'Hello [Name],<br><br>Your Cricut booking is confirmed for [Date] at [Appointment Time] at [Branch]. Please bring your design files and materials if required.<br><br>Thank you,<br>[Staff Name]'),
+      templateNode('3D Printing - Appointment Confirmation', 'Makerspace Booking > 3D Printing', 'Appointment and file prep reminder', 'Hello [Name],<br><br>Your 3D printing appointment is confirmed for [Date] at [Appointment Time]. Please ensure your [Equipment] files are ready before your visit.<br><br>Sincerely,<br>[Staff Name]')
     ]},
     { id: uid(), type: 'category', name: '3D Print Orders', children: [
-      templateNode('Price Quote', '3D Print Orders - Price Quote', 'Send quote to customer', 'Hello [Name],<br><br>Your 3D print quote is ready. Estimated price: [Price]. Please reply to confirm if you would like us to proceed.<br><br>Thank you,<br>[Staff Name]'),
-      templateNode('Pickup Notification', '3D Print Orders - Pickup Notification', 'Notify customer when order is ready', 'Hello [Name],<br><br>Your 3D print order [Order Number] is ready for pickup at [Branch].<br><br>Thank you,<br>[Staff Name]')
+      templateNode('Price Quote', '3D Print Orders - Price Quote', 'Send quote to customer', 'Hello [Name],<br><br>Your 3D print quote is ready. Estimated price: [Price]. Please reply to confirm if you would like us to proceed.<br><br>Thank you,<br>[Staff Name]')
     ]}
   ]
 };
 
-function templateNode(name, subject, notes, body){ return { id: uid(), type: 'template', name, subject, body, notes }; }
-function uid(){ return Math.random().toString(36).slice(2,10); }
-
-// ======================= State Management =======================
-const LS_KEY = 'libraryTemplateTool_v1';
-let state = {
-  nodes: [],
+const DEFAULT_CONFIG = {
   selectedId: null,
   placeholders: { Name: '' },
-  currentSourceTemplate: null,
-  hst: { preTax:0, quantity:1, hstRate:13, discountAmount:0, discountPercent:0 }
+  hst: { preTax:0, quantity:1, hstRate:13, discountAmount:0, discountPercent:0 },
+  ui: { activeTab: 'templatesTab', defaultStaffName: '', defaultBranch: '', recentlyUsedTemplateId: null },
+  exports: { templates: null, config: null, backup: null }
 };
 
-function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+const LS_KEY = 'libraryTemplateTool_v2';
+let state = { templates: null, config: null, currentSourceTemplate: null };
+const el = id => document.getElementById(id);
+
+function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+function setStatus(msg,isErr=false){ const s=el('statusMsg'); s.textContent=msg; s.style.color=isErr?'#991b1b':'#0e7490'; }
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify({ templates: state.templates, config: state.config })); }
 function loadState(){
   const raw = localStorage.getItem(LS_KEY);
-  if (!raw){ state.nodes = JSON.parse(JSON.stringify(DEFAULT_DATA.nodes)); return; }
-  try { Object.assign(state, JSON.parse(raw)); }
-  catch { state.nodes = JSON.parse(JSON.stringify(DEFAULT_DATA.nodes)); }
+  if (!raw){ state.templates = clone(DEFAULT_TEMPLATES); state.config = clone(DEFAULT_CONFIG); return; }
+  try {
+    const parsed = JSON.parse(raw);
+    state.templates = parsed.templates?.nodes ? parsed.templates : clone(DEFAULT_TEMPLATES);
+    state.config = parsed.config ? { ...clone(DEFAULT_CONFIG), ...parsed.config } : clone(DEFAULT_CONFIG);
+    state.config.placeholders = { ...clone(DEFAULT_CONFIG.placeholders), ...(parsed.config?.placeholders||{}) };
+    state.config.hst = { ...clone(DEFAULT_CONFIG.hst), ...(parsed.config?.hst||{}) };
+    state.config.ui = { ...clone(DEFAULT_CONFIG.ui), ...(parsed.config?.ui||{}) };
+    state.config.exports = { ...clone(DEFAULT_CONFIG.exports), ...(parsed.config?.exports||{}) };
+  } catch {
+    state.templates = clone(DEFAULT_TEMPLATES);
+    state.config = clone(DEFAULT_CONFIG);
+  }
 }
 
-// ======================= Rendering =======================
-const el = id => document.getElementById(id);
+function findNodeById(nodes,id){ for(const n of nodes){ if(n.id===id) return n; if(n.children){ const x=findNodeById(n.children,id); if(x) return x; } } return null; }
+function findWithParent(nodes,id,parent=null){ for(let i=0;i<nodes.length;i++){ const n=nodes[i]; if(n.id===id) return {node:n,parent,list:nodes,index:i}; if(n.children){ const x=findWithParent(n.children,id,n); if(x) return x; } } return null; }
+
 function renderTree(){
-  const root = el('templateTree');
-  root.innerHTML = '';
+  const root = el('templateTree'); root.innerHTML = '';
   const build = (nodes, parent) => {
     const ul = document.createElement('ul');
     nodes.forEach(n => {
       const li = document.createElement('li');
       const row = document.createElement('div'); row.className = 'tree-item';
-      const name = document.createElement('button'); name.className='tree-name'+(state.selectedId===n.id?' selected':''); name.textContent=n.name;
-      name.onclick = ()=> selectNode(n.id);
+      const name = document.createElement('button');
+      name.className='tree-name'+(state.config.selectedId===n.id?' selected':'');
+      name.textContent=n.name; name.onclick = ()=> selectNode(n.id);
       row.appendChild(name);
-      ['↑','↓','✎','🗑'].forEach((sym,i)=>{
-        const b=document.createElement('button'); b.textContent=sym; b.className='small';
-        b.onclick=()=>treeAction(n.id,i); row.appendChild(b);
-      });
+      ['↑','↓','✎','🗑'].forEach((sym,i)=>{ const b=document.createElement('button'); b.textContent=sym; b.className='small'; b.onclick=()=>treeAction(n.id,i); row.appendChild(b); });
       li.appendChild(row);
       if (n.children?.length) build(n.children, li);
       ul.appendChild(li);
     });
     parent.appendChild(ul);
   };
-  build(state.nodes, root);
+  build(state.templates.nodes, root);
 }
 
 function selectNode(id){
-  state.selectedId=id;
-  const node=findNodeById(state.nodes,id);
+  state.config.selectedId=id;
+  state.config.ui.recentlyUsedTemplateId = id;
+  const node=findNodeById(state.templates.nodes,id);
   if(node?.type==='template') loadTemplateToEditor(node);
   renderTree(); saveState();
 }
 
-function findNodeById(nodes,id,parent=null){
-  for(const n of nodes){
-    if(n.id===id) return n;
-    if(n.children){ const x=findNodeById(n.children,id,n); if(x) return x; }
-  }
-  return null;
-}
-
-function findWithParent(nodes,id,parent=null){
-  for(let i=0;i<nodes.length;i++){
-    const n=nodes[i]; if(n.id===id) return {node:n,parent,list:nodes,index:i};
-    if(n.children){ const x=findWithParent(n.children,id,n); if(x) return x; }
-  } return null;
-}
-
-// ======================= Template Generation =======================
-function extractPlaceholders(text){
-  const m=[...(text||'').matchAll(/\[([^\]]+)\]/g)].map(x=>x[1]);
-  return [...new Set(m)];
-}
-function applyPlaceholders(text){
-  return (text||'').replace(/\[([^\]]+)\]/g, (_, key)=> state.placeholders[key]?.trim() ? state.placeholders[key].trim() : `[${key}]`);
-}
-function loadTemplateToEditor(t){
-  state.currentSourceTemplate = JSON.parse(JSON.stringify(t));
-  el('templateNotes').value=t.notes||'';
-  renderPlaceholderPanel(t);
-  regenerateFromTemplate();
-}
-function regenerateFromTemplate(){
-  if(!state.currentSourceTemplate) return;
-  el('emailSubject').value = applyPlaceholders(state.currentSourceTemplate.subject||'');
-  el('emailBody').innerHTML = applyPlaceholders(state.currentSourceTemplate.body||'');
-  setStatus('Template regenerated.');
-}
+function extractPlaceholders(text){ return [...new Set([...(text||'').matchAll(/\[([^\]]+)\]/g)].map(x=>x[1]))]; }
+function applyPlaceholders(text){ return (text||'').replace(/\[([^\]]+)\]/g, (_, key)=> state.config.placeholders[key]?.trim() ? state.config.placeholders[key].trim() : `[${key}]`); }
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function loadTemplateToEditor(t){ state.currentSourceTemplate = clone(t); el('templateNotes').value=t.notes||''; renderPlaceholderPanel(t); regenerateFromTemplate(); }
+function regenerateFromTemplate(){ if(!state.currentSourceTemplate) return; el('emailSubject').value = applyPlaceholders(state.currentSourceTemplate.subject||''); el('emailBody').innerHTML = applyPlaceholders(state.currentSourceTemplate.body||''); }
 function renderPlaceholderPanel(t){
-  const panel=el('placeholderPanel'); panel.innerHTML='';
-  const keys=new Set(['Name']);
+  const panel=el('placeholderPanel'); panel.innerHTML=''; const keys=new Set(['Name']);
   extractPlaceholders((t.subject||'')+' '+(t.body||'')).forEach(k=>keys.add(k));
   keys.forEach(k=>{
-    if(state.placeholders[k]===undefined) state.placeholders[k]='';
+    if(state.config.placeholders[k]===undefined) state.config.placeholders[k]='';
     const d=document.createElement('div'); d.className='field';
-    d.innerHTML=`<label>${k}</label><input type="text" data-ph="${k}" value="${escapeHtml(state.placeholders[k])}">`;
+    d.innerHTML=`<label>${k}</label><input type="text" data-ph="${k}" value="${escapeHtml(state.config.placeholders[k])}">`;
     panel.appendChild(d);
   });
-  panel.querySelectorAll('input[data-ph]').forEach(inp=>inp.oninput=(e)=>{
-    const key=e.target.dataset.ph; state.placeholders[key]=e.target.value;
-    if(key==='Name') el('customerName').value=e.target.value;
-    regenerateFromTemplate(); saveState();
-  });
+  panel.querySelectorAll('input[data-ph]').forEach(inp=>inp.oninput=(e)=>{ const key=e.target.dataset.ph; state.config.placeholders[key]=e.target.value; if(key==='Name') el('customerName').value=e.target.value; regenerateFromTemplate(); saveState(); });
 }
-function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ======================= Rich Text Editor =======================
 function exec(cmd,val=null){ document.execCommand(cmd,false,val); el('emailBody').focus(); }
 
-// ======================= Import / Export =======================
-function exportData(){
-  const blob=new Blob([JSON.stringify({nodes:state.nodes},null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='library_templates.json'; a.click();
-  URL.revokeObjectURL(a.href); setStatus('Templates exported.');
-}
-function importData(file){
-  const fr=new FileReader(); fr.onload=()=>{
-    try{ const data=JSON.parse(fr.result); if(!Array.isArray(data.nodes)) throw new Error(); state.nodes=data.nodes; saveState(); renderTree(); setStatus('Templates imported.'); }
-    catch{ setStatus('Import failed: invalid JSON.', true); }
-  }; fr.readAsText(file);
+function createExportEnvelope(schema, data){ return { schema, version: FILE_VERSION, exportedAt: new Date().toISOString(), data }; }
+function downloadJson(filename, payload){ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); URL.revokeObjectURL(a.href); }
+function safeParseJson(text){ try { return JSON.parse(text); } catch { return null; } }
+function readFileAsText(file){ return new Promise((resolve,reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=()=>reject(new Error('Could not read file')); fr.readAsText(file); }); }
+
+function validateTemplatesData(data){ return !!data && Array.isArray(data.nodes); }
+function validateConfigData(data){ return !!data && data.placeholders && data.hst && data.ui; }
+
+async function importJsonFile(file, schema, validator){
+  const parsed = safeParseJson(await readFileAsText(file));
+  if(!parsed) throw new Error('Invalid JSON format.');
+  if(parsed.schema !== schema) throw new Error(`Expected schema "${schema}".`);
+  if(parsed.version !== FILE_VERSION) throw new Error(`Unsupported version "${parsed.version}".`);
+  if(!validator(parsed.data)) throw new Error('JSON data structure is incompatible.');
+  return parsed;
 }
 
-// ======================= HST Calculator =======================
+function updateExportStamp(type, timestamp){ state.config.exports[type] = timestamp; saveState(); renderExportTimestamps(); }
+function renderExportTimestamps(){
+  el('lastTemplatesExport').textContent = `Templates: ${state.config.exports.templates || 'Never'}`;
+  el('lastConfigExport').textContent = `Config: ${state.config.exports.config || 'Never'}`;
+  el('lastBackupExport').textContent = `Full Backup: ${state.config.exports.backup || 'Never'}`;
+}
+
+function exportTemplates(){ const payload = createExportEnvelope(SCHEMA_TEMPLATES, clone(state.templates)); downloadJson('makerspace-email-templates.json', payload); updateExportStamp('templates', payload.exportedAt); setStatus('Templates exported.'); }
+function exportConfig(){ const payload = createExportEnvelope(SCHEMA_CONFIG, clone(state.config)); downloadJson('makerspace-email-config.json', payload); updateExportStamp('config', payload.exportedAt); setStatus('Config exported.'); }
+function exportBackup(){ const payload = { schema: SCHEMA_BACKUP, version: FILE_VERSION, exportedAt: new Date().toISOString(), templates: clone(state.templates), config: clone(state.config) }; downloadJson('makerspace-email-tool-backup.json', payload); updateExportStamp('backup', payload.exportedAt); setStatus('Full backup exported.'); }
+
+async function handleImportTemplates(file){
+  try { const imported = await importJsonFile(file, SCHEMA_TEMPLATES, validateTemplatesData); if(!confirm('Import templates and overwrite current templates?')) return; state.templates = imported.data; saveState(); renderTree(); setStatus('Templates imported successfully.'); }
+  catch(err){ setStatus(`Templates import failed: ${err.message}`, true); }
+}
+async function handleImportConfig(file){
+  try { const imported = await importJsonFile(file, SCHEMA_CONFIG, validateConfigData); if(!confirm('Import config and overwrite current settings/configuration?')) return; state.config = { ...clone(DEFAULT_CONFIG), ...imported.data }; saveState(); applyConfigToUi(); setStatus('Config imported successfully.'); }
+  catch(err){ setStatus(`Config import failed: ${err.message}`, true); }
+}
+async function handleImportBackup(file){
+  try {
+    const parsed = safeParseJson(await readFileAsText(file));
+    if(!parsed) throw new Error('Invalid JSON format.');
+    if(parsed.schema !== SCHEMA_BACKUP) throw new Error(`Expected schema "${SCHEMA_BACKUP}".`);
+    if(parsed.version !== FILE_VERSION) throw new Error(`Unsupported version "${parsed.version}".`);
+    if(!validateTemplatesData(parsed.templates) || !validateConfigData(parsed.config)) throw new Error('Backup structure is incompatible.');
+    if(!confirm('Import full backup and overwrite current templates and config?')) return;
+    state.templates = parsed.templates;
+    state.config = { ...clone(DEFAULT_CONFIG), ...parsed.config };
+    saveState(); applyConfigToUi(); renderTree(); setStatus('Full backup imported successfully.');
+  } catch(err){ setStatus(`Full backup import failed: ${err.message}`, true); }
+}
+
+function treeAction(id,action){ const info=findWithParent(state.templates.nodes,id); if(!info) return; if(action===0 && info.index>0) [info.list[info.index-1],info.list[info.index]]=[info.list[info.index],info.list[info.index-1]]; if(action===1 && info.index<info.list.length-1) [info.list[info.index+1],info.list[info.index]]=[info.list[info.index],info.list[info.index+1]]; if(action===2){ const nm=prompt('Rename item:', info.node.name); if(nm) info.node.name=nm.trim(); } if(action===3){ if(confirm('Delete this item and its children/templates?')) info.list.splice(info.index,1); } renderTree(); saveState(); }
+function selectedTemplate(){ const n=findNodeById(state.templates.nodes,state.config.selectedId); return n?.type==='template'?n:null; }
 function round2(n){ return Math.round((n+Number.EPSILON)*100)/100; }
-function calcHST(){
-  const p=+el('preTax').value||0, q=Math.max(1,+el('quantity').value||1), r=+el('hstRate').value||0;
-  const da=Math.max(0,+el('discountAmount').value||0), dp=Math.max(0,+el('discountPercent').value||0);
-  const subtotal=round2(p*q);
-  const disc=round2(da + (subtotal*dp/100));
-  const taxable=round2(Math.max(0,subtotal-disc));
-  const hst=round2(taxable*r/100);
-  const total=round2(taxable+hst);
-  el('calcResults').innerHTML = `
-    <div class="result-row"><span>Subtotal</span><strong>$${subtotal.toFixed(2)}</strong></div>
-    <div class="result-row"><span>Discount</span><strong>-$${disc.toFixed(2)}</strong></div>
-    <div class="result-row"><span>Taxable Amount</span><strong>$${taxable.toFixed(2)}</strong></div>
-    <div class="result-row"><span>HST Amount</span><strong>$${hst.toFixed(2)}</strong></div>
-    <div class="result-row"><span>Total</span><strong>$${total.toFixed(2)}</strong></div>`;
-  state.hst={preTax:p,quantity:q,hstRate:r,discountAmount:da,discountPercent:dp}; saveState();
-  return {subtotal,hst,total,rate:r};
+function calcHST(){ const p=+el('preTax').value||0, q=Math.max(1,+el('quantity').value||1), r=+el('hstRate').value||0; const da=Math.max(0,+el('discountAmount').value||0), dp=Math.max(0,+el('discountPercent').value||0); const subtotal=round2(p*q); const disc=round2(da + (subtotal*dp/100)); const taxable=round2(Math.max(0,subtotal-disc)); const hst=round2(taxable*r/100); const total=round2(taxable+hst); el('calcResults').innerHTML = `<div class="result-row"><span>Subtotal</span><strong>$${subtotal.toFixed(2)}</strong></div><div class="result-row"><span>Discount</span><strong>-$${disc.toFixed(2)}</strong></div><div class="result-row"><span>Taxable Amount</span><strong>$${taxable.toFixed(2)}</strong></div><div class="result-row"><span>HST Amount</span><strong>$${hst.toFixed(2)}</strong></div><div class="result-row"><span>Total</span><strong>$${total.toFixed(2)}</strong></div>`; state.config.hst={preTax:p,quantity:q,hstRate:r,discountAmount:da,discountPercent:dp}; saveState(); return {subtotal,hst,total,rate:r}; }
+
+function applyConfigToUi(){
+  el('customerName').value = state.config.placeholders.Name || '';
+  ['preTax','quantity','hstRate','discountAmount','discountPercent'].forEach(id=>{ el(id).value = state.config.hst[id] ?? el(id).value; });
+  calcHST();
+  renderExportTimestamps();
+  const toSelect = state.config.selectedId && findNodeById(state.templates.nodes, state.config.selectedId);
+  if(toSelect) selectNode(toSelect.id);
 }
 
-// ======================= Actions =======================
-function treeAction(id,action){
-  const info=findWithParent(state.nodes,id); if(!info) return;
-  if(action===0 && info.index>0) [info.list[info.index-1],info.list[info.index]]=[info.list[info.index],info.list[info.index-1]];
-  if(action===1 && info.index<info.list.length-1) [info.list[info.index+1],info.list[info.index]]=[info.list[info.index],info.list[info.index+1]];
-  if(action===2){ const nm=prompt('Rename item:', info.node.name); if(nm) info.node.name=nm.trim(); }
-  if(action===3){ if(confirm('Delete this item and its children/templates?')) info.list.splice(info.index,1); }
-  renderTree(); saveState();
-}
-
-function selectedTemplate(){ const n=findNodeById(state.nodes,state.selectedId); return n?.type==='template'?n:null; }
-function setStatus(msg,isErr=false){ const s=el('statusMsg'); s.textContent=msg; s.style.color=isErr?'#991b1b':'#0e7490'; }
-
-// ======================= Init + Events =======================
 loadState();
-el('customerName').value = state.placeholders.Name || '';
-el('customerName').oninput=(e)=>{ state.placeholders.Name=e.target.value; regenerateFromTemplate(); saveState(); };
-
 renderTree();
-if(!state.selectedId){
-  const first=(function findFirst(nodes){for(const n of nodes){ if(n.type==='template')return n; if(n.children){const x=findFirst(n.children); if(x)return x;}}})(state.nodes);
-  if(first) selectNode(first.id);
-}
+applyConfigToUi();
+if(!state.config.selectedId){ const first=(function findFirst(nodes){for(const n of nodes){ if(n.type==='template')return n; if(n.children){const x=findFirst(n.children); if(x)return x;}}})(state.templates.nodes); if(first) selectNode(first.id); }
 
-el('addCategoryBtn').onclick=()=>{ const n=prompt('Category name:'); if(!n) return; state.nodes.push({id:uid(),type:'category',name:n,children:[]}); renderTree(); saveState(); };
-el('addTemplateBtn').onclick=()=>{
-  const info=findWithParent(state.nodes,state.selectedId)||{node:null};
-  const target = info?.node?.type==='category' ? info.node : state.nodes[0];
-  if(!target || target.type!=='category') return setStatus('Select or create a category first.', true);
-  const nm=prompt('Template name:','New Template'); if(!nm) return;
-  target.children.push(templateNode(nm,'Subject here','', 'Hello [Name],<br><br>Your message here.<br><br>[Staff Name]'));
-  renderTree(); saveState(); setStatus('New template created.');
-};
+el('customerName').oninput=(e)=>{ state.config.placeholders.Name=e.target.value; regenerateFromTemplate(); saveState(); };
+el('addCategoryBtn').onclick=()=>{ const n=prompt('Category name:'); if(!n) return; state.templates.nodes.push({id:uid(),type:'category',name:n,children:[]}); renderTree(); saveState(); };
+el('addTemplateBtn').onclick=()=>{ const info=findWithParent(state.templates.nodes,state.config.selectedId)||{node:null}; const target = info?.node?.type==='category' ? info.node : state.templates.nodes[0]; if(!target || target.type!=='category') return setStatus('Select or create a category first.', true); const nm=prompt('Template name:','New Template'); if(!nm) return; target.children.push(templateNode(nm,'Subject here','', 'Hello [Name],<br><br>Your message here.<br><br>[Staff Name]')); renderTree(); saveState(); setStatus('New template created.'); };
 el('editTemplateBtn').onclick=()=>{ const t=selectedTemplate(); if(!t) return setStatus('Select a template to edit.', true); const nm=prompt('Template name:',t.name); if(nm) t.name=nm; t.notes=el('templateNotes').value; saveState(); renderTree(); setStatus('Template updated.'); };
-el('duplicateTemplateBtn').onclick=()=>{ const info=findWithParent(state.nodes,state.selectedId); if(!info||info.node.type!=='template') return setStatus('Select a template to duplicate.', true); info.list.splice(info.index+1,0,{...JSON.parse(JSON.stringify(info.node)),id:uid(),name:info.node.name+' (Copy)'}); renderTree(); saveState(); setStatus('Template duplicated.'); };
-el('deleteTemplateBtn').onclick=()=>{ const info=findWithParent(state.nodes,state.selectedId); if(!info||info.node.type!=='template') return setStatus('Select a template to delete.', true); if(confirm('Delete this template?')){ info.list.splice(info.index,1); state.selectedId=null; renderTree(); saveState(); setStatus('Template deleted.'); } };
+el('duplicateTemplateBtn').onclick=()=>{ const info=findWithParent(state.templates.nodes,state.config.selectedId); if(!info||info.node.type!=='template') return setStatus('Select a template to duplicate.', true); info.list.splice(info.index+1,0,{...clone(info.node),id:uid(),name:info.node.name+' (Copy)'}); renderTree(); saveState(); setStatus('Template duplicated.'); };
+el('deleteTemplateBtn').onclick=()=>{ const info=findWithParent(state.templates.nodes,state.config.selectedId); if(!info||info.node.type!=='template') return setStatus('Select a template to delete.', true); if(confirm('Delete this template?')){ info.list.splice(info.index,1); state.config.selectedId=null; renderTree(); saveState(); setStatus('Template deleted.'); } };
 el('saveTemplateBtn').onclick=()=>{ const t=selectedTemplate(); if(!t) return setStatus('Select a template to save.', true); t.subject=el('emailSubject').value; t.body=el('emailBody').innerHTML; t.notes=el('templateNotes').value; saveState(); setStatus('Template saved.'); };
-el('resetDefaultsBtn').onclick=()=>{ if(confirm('Reset all templates to defaults? This will overwrite custom templates.')){ state.nodes=JSON.parse(JSON.stringify(DEFAULT_DATA.nodes)); state.selectedId=null; renderTree(); const first=(function f(ns){for(const n of ns){if(n.type==='template')return n;if(n.children){const x=f(n.children);if(x)return x;}}})(state.nodes); if(first) selectNode(first.id); saveState(); setStatus('Templates reset to defaults.'); } };
-el('exportBtn').onclick=exportData;
-el('importBtn').onclick=()=>el('importFile').click();
-el('importFile').onchange=(e)=>{ if(e.target.files[0]) importData(e.target.files[0]); e.target.value=''; };
-el('regenerateBtn').onclick=regenerateFromTemplate;
+el('resetDefaultsBtn').onclick=()=>{ if(confirm('Reset all templates to defaults? This will overwrite custom templates.')){ state.templates=clone(DEFAULT_TEMPLATES); state.config.selectedId=null; renderTree(); saveState(); setStatus('Templates reset to defaults.'); } };
+
+el('exportTemplatesBtn').onclick=exportTemplates;
+el('exportConfigBtn').onclick=exportConfig;
+el('exportBackupBtn').onclick=exportBackup;
+el('importTemplatesBtn').onclick=()=>el('importTemplatesFile').click();
+el('importConfigBtn').onclick=()=>el('importConfigFile').click();
+el('importBackupBtn').onclick=()=>el('importBackupFile').click();
+el('importTemplatesFile').onchange=(e)=>{ if(e.target.files[0]) handleImportTemplates(e.target.files[0]); e.target.value=''; };
+el('importConfigFile').onchange=(e)=>{ if(e.target.files[0]) handleImportConfig(e.target.files[0]); e.target.value=''; };
+el('importBackupFile').onchange=(e)=>{ if(e.target.files[0]) handleImportBackup(e.target.files[0]); e.target.value=''; };
+el('resetTemplatesBtn').onclick=()=>{ if(confirm('Reset templates to defaults?')){ state.templates=clone(DEFAULT_TEMPLATES); state.config.selectedId=null; saveState(); renderTree(); setStatus('Templates reset to defaults.'); } };
+el('resetConfigBtn').onclick=()=>{ if(confirm('Reset config to defaults?')){ state.config=clone(DEFAULT_CONFIG); saveState(); applyConfigToUi(); setStatus('Config reset to defaults.'); } };
+
+el('regenerateBtn').onclick=()=>{ regenerateFromTemplate(); setStatus('Template regenerated.'); };
 el('clearEditorBtn').onclick=()=>{ el('emailSubject').value=''; el('emailBody').innerHTML=''; setStatus('Editor cleared.'); };
 el('copySubjectBtn').onclick=async()=>{ await navigator.clipboard.writeText(el('emailSubject').value); setStatus('Subject copied!'); };
 el('copyBodyBtn').onclick=async()=>{ try{ await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([el('emailBody').innerHTML],{type:'text/html'})})]); setStatus('Email body copied (rich text)!'); }catch{ await navigator.clipboard.writeText(el('emailBody').innerText); setStatus('Clipboard fallback used (plain text).'); } };
@@ -477,15 +498,11 @@ el('copyPlainBtn').onclick=async()=>{ await navigator.clipboard.writeText(el('em
 document.querySelectorAll('.editor-toolbar button[data-cmd]').forEach(b=>b.onclick=()=>exec(b.dataset.cmd));
 el('insertLinkBtn').onclick=()=>{ const url=prompt('Enter URL:'); if(url) exec('createLink',url); };
 
-document.querySelectorAll('.tab-btn').forEach(btn=>btn.onclick=()=>{
-  document.querySelectorAll('.tab-btn').forEach(b=>{b.classList.remove('active'); b.setAttribute('aria-selected','false');});
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  btn.classList.add('active'); btn.setAttribute('aria-selected','true'); el(btn.dataset.tab).classList.add('active');
-});
+document.querySelectorAll('.tab-btn').forEach(btn=>btn.onclick=()=>{ document.querySelectorAll('.tab-btn').forEach(b=>{b.classList.remove('active'); b.setAttribute('aria-selected','false');}); document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active')); btn.classList.add('active'); btn.setAttribute('aria-selected','true'); el(btn.dataset.tab).classList.add('active'); state.config.ui.activeTab=btn.dataset.tab; saveState(); });
+if(state.config.ui.activeTab){ const tabBtn=document.querySelector(`.tab-btn[data-tab="${state.config.ui.activeTab}"]`); if(tabBtn) tabBtn.click(); }
 
-['preTax','quantity','hstRate','discountAmount','discountPercent'].forEach(id=>{ el(id).value = state.hst[id] ?? el(id).value; el(id).oninput=calcHST;});
+['preTax','quantity','hstRate','discountAmount','discountPercent'].forEach(id=>el(id).oninput=calcHST);
 el('copySummaryBtn').onclick=async()=>{ const r=calcHST(); const txt=`Subtotal: $${r.subtotal.toFixed(2)}\nHST ${r.rate}%: $${r.hst.toFixed(2)}\nTotal: $${r.total.toFixed(2)}`; await navigator.clipboard.writeText(txt); setStatus('Total summary copied!'); };
-calcHST();
 </script>
 </body>
 </html>
