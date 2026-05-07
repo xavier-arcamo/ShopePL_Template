@@ -1,1 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Library Email Template & Ontario HST Tool</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --primary: #0f766e;
+      --primary-2: #115e59;
+      --danger: #b91c1c;
+      --success: #166534;
+      --shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    }
 
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.4;
+    }
+
+    .app { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0; font-size: 1.4rem; }
+
+    .status {
+      min-height: 1.5rem;
+      padding: 0.4rem 0.7rem;
+      border-radius: 8px;
+      background: #ecfeff;
+      color: #0e7490;
+      font-size: 0.9rem;
+      border: 1px solid #a5f3fc;
+    }
+
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
+    .tab-btn {
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      padding: 0.55rem 0.8rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 0.9rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 0.9rem;
+      align-items: start;
+    }
+
+    .controls, .editor-area { min-height: 550px; }
+
+    .field { margin-bottom: 0.65rem; }
+    label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      padding: 0.45rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+    }
+
+    textarea { min-height: 90px; resize: vertical; }
+
+    .button-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.45rem 0; }
+    button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.45rem 0.7rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    button.primary:hover { background: var(--primary-2); }
+    button.danger { color: #fff; background: var(--danger); border-color: var(--danger); }
+    button.small { padding: 0.3rem 0.5rem; font-size: 0.82rem; }
+
+    .tree ul { list-style: none; margin: 0.2rem 0 0.2rem 1rem; padding: 0; }
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      margin: 0.15rem 0;
+    }
+    .tree-name { flex: 1; border: 1px solid transparent; padding: 0.25rem 0.35rem; border-radius: 6px; }
+    .tree-name.selected { background: #e6fffa; border-color: #99f6e4; }
+
+    .editor-toolbar { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+    .editor {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.7rem;
+      min-height: 300px;
+      background: #fff;
+      overflow: auto;
+    }
+
+    .help summary { cursor: pointer; font-weight: 700; }
+    .muted { color: var(--muted); font-size: 0.88rem; }
+
+    .calc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.7rem;
+    }
+    .results { margin-top: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.6rem; }
+    .result-row { display: flex; justify-content: space-between; margin: 0.25rem 0; }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .controls, .editor-area { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <h1>Library Staff Email Template & Ontario HST Tool</h1>
+      <div class="status" id="statusMsg" role="status" aria-live="polite">Ready.</div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Main tabs">
+      <button class="tab-btn active" role="tab" aria-selected="true" data-tab="templatesTab">Email Templates</button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="hstTab">Ontario GST/HST Calculator</button>
+    </div>
+
+    <section id="templatesTab" class="tab-panel active" role="tabpanel">
+      <div class="layout">
+        <aside class="card controls">
+          <div class="field">
+            <label for="customerName">Customer Name</label>
+            <input id="customerName" type="text" placeholder="e.g., Alex Chen" />
+          </div>
+
+          <div class="field">
+            <label>Categories / Templates</label>
+            <div class="tree" id="templateTree"></div>
+            <div class="button-row">
+              <button id="addCategoryBtn" class="small">Add Category</button>
+              <button id="addTemplateBtn" class="small">New Template</button>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="editTemplateBtn">Edit Template</button>
+            <button id="duplicateTemplateBtn">Duplicate Template</button>
+            <button id="deleteTemplateBtn" class="danger">Delete Template</button>
+          </div>
+          <div class="button-row">
+            <button id="saveTemplateBtn" class="primary">Save Template</button>
+            <button id="resetDefaultsBtn">Reset to Default Templates</button>
+          </div>
+          <div class="button-row">
+            <button id="exportBtn">Export Templates</button>
+            <button id="importBtn">Import Templates</button>
+            <input id="importFile" type="file" accept="application/json" hidden />
+          </div>
+
+          <div class="field">
+            <label for="templateNotes">Template Notes (Internal)</label>
+            <textarea id="templateNotes" placeholder="Optional internal description..."></textarea>
+          </div>
+
+          <details class="help card">
+            <summary>Help / Instructions</summary>
+            <ul>
+              <li>Select a template from the tree, then use placeholder fields to personalize.</li>
+              <li><strong>[Name]</strong> is linked to Customer Name automatically.</li>
+              <li>Use toolbar buttons to format the email body.</li>
+              <li>Use Export/Import to back up or transfer templates.</li>
+            </ul>
+          </details>
+        </aside>
+
+        <main class="card editor-area">
+          <div class="field">
+            <label for="emailSubject">Subject</label>
+            <input id="emailSubject" type="text" />
+            <div class="button-row">
+              <button id="copySubjectBtn">Copy Subject</button>
+              <button id="regenerateBtn">Regenerate from Template</button>
+              <button id="clearEditorBtn">Clear Editor</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Placeholder Values</label>
+            <div id="placeholderPanel" class="calc-grid"></div>
+          </div>
+
+          <div class="editor-toolbar" aria-label="Rich text toolbar">
+            <button data-cmd="bold"><b>B</b></button>
+            <button data-cmd="italic"><i>I</i></button>
+            <button data-cmd="underline"><u>U</u></button>
+            <button data-cmd="insertUnorderedList">• List</button>
+            <button data-cmd="insertOrderedList">1. List</button>
+            <button id="insertLinkBtn">Link</button>
+            <button data-cmd="removeFormat">Clear Format</button>
+          </div>
+
+          <div id="emailBody" class="editor" contenteditable="true" aria-label="Email body editor"></div>
+          <div class="button-row" style="margin-top:0.7rem;">
+            <button id="copyBodyBtn" class="primary">Copy Email Body</button>
+            <button id="copyPlainBtn">Copy Plain Text</button>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <section id="hstTab" class="tab-panel" role="tabpanel">
+      <div class="card">
+        <h2 style="margin-top:0;">Ontario GST/HST Calculator</h2>
+        <div class="calc-grid">
+          <div class="field"><label for="preTax">Pre-tax Amount</label><input id="preTax" type="number" min="0" step="0.01" value="0"></div>
+          <div class="field"><label for="quantity">Quantity</label><input id="quantity" type="number" min="1" step="1" value="1"></div>
+          <div class="field"><label for="hstRate">HST Rate (%)</label><input id="hstRate" type="number" min="0" step="0.01" value="13"></div>
+          <div class="field"><label for="discountAmount">Discount Amount ($)</label><input id="discountAmount" type="number" min="0" step="0.01" value="0"></div>
+          <div class="field"><label for="discountPercent">Discount Percent (%)</label><input id="discountPercent" type="number" min="0" step="0.01" value="0"></div>
+        </div>
+
+        <div class="results" id="calcResults"></div>
+        <div class="button-row">
+          <button id="copySummaryBtn">Copy Total Summary</button>
+        </div>
+        <p class="muted">Ontario HST default is 13%. Please confirm current tax rules if needed.</p>
+      </div>
+    </section>
+  </div>
+
+<script>
+// ======================= Default Data =======================
+const DEFAULT_DATA = {
+  nodes: [
+    { id: uid(), type: 'category', name: 'Makerspace Booking', children: [
+      templateNode('Cricut - Booking Confirmation', 'Makerspace Booking > Cricut', 'Cricut appointment confirmation',
+        'Hello [Name],<br><br>Your Cricut booking is confirmed for [Date] at [Appointment Time] at [Branch]. Please bring your design files and materials if required.<br><br>Thank you,<br>[Staff Name]'),
+      templateNode('3D Printing - Appointment Confirmation', 'Makerspace Booking > 3D Printing', 'Appointment and file prep reminder',
+        'Hello [Name],<br><br>Your 3D printing appointment is confirmed for [Date] at [Appointment Time]. Please ensure your [Equipment] files are ready before your visit.<br><br>Sincerely,<br>[Staff Name]'),
+      templateNode('Digitization - Reminder', 'Makerspace Booking > Digitization', 'Digitization appointment reminder',
+        'Hello [Name],<br><br>This is a reminder for your digitization appointment on [Date] at [Appointment Time] at [Branch]. Please bring all items and storage media needed.<br><br>Kind regards,<br>[Staff Name]'),
+      templateNode('Large Format Printing - File Requirements', 'Makerspace Booking > Large Format Printing', 'File requirements reminder',
+        'Hello [Name],<br><br>Before your large format printing appointment, please verify your file size, resolution, and format. Your appointment is scheduled for [Date] at [Appointment Time].<br><br>Thank you,<br>[Staff Name]'),
+      templateNode('Sublimation - Appointment Confirmation', 'Makerspace Booking > Sublimation', 'Sublimation appointment confirmation',
+        'Hello [Name],<br><br>Your sublimation appointment is confirmed for [Date] at [Appointment Time] at [Branch]. We look forward to helping with your project.<br><br>Best regards,<br>[Staff Name]')
+    ]},
+    { id: uid(), type: 'category', name: '3D Print Orders', children: [
+      templateNode('Price Quote', '3D Print Orders - Price Quote', 'Send quote to customer', 'Hello [Name],<br><br>Your 3D print quote is ready. Estimated price: [Price]. Please reply to confirm if you would like us to proceed.<br><br>Thank you,<br>[Staff Name]'),
+      templateNode('Pickup Notification', '3D Print Orders - Pickup Notification', 'Notify customer when order is ready', 'Hello [Name],<br><br>Your 3D print order [Order Number] is ready for pickup at [Branch].<br><br>Thank you,<br>[Staff Name]')
+    ]}
+  ]
+};
+
+function templateNode(name, subject, notes, body){ return { id: uid(), type: 'template', name, subject, body, notes }; }
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+// ======================= State Management =======================
+const LS_KEY = 'libraryTemplateTool_v1';
+let state = {
+  nodes: [],
+  selectedId: null,
+  placeholders: { Name: '' },
+  currentSourceTemplate: null,
+  hst: { preTax:0, quantity:1, hstRate:13, discountAmount:0, discountPercent:0 }
+};
+
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function loadState(){
+  const raw = localStorage.getItem(LS_KEY);
+  if (!raw){ state.nodes = JSON.parse(JSON.stringify(DEFAULT_DATA.nodes)); return; }
+  try { Object.assign(state, JSON.parse(raw)); }
+  catch { state.nodes = JSON.parse(JSON.stringify(DEFAULT_DATA.nodes)); }
+}
+
+// ======================= Rendering =======================
+const el = id => document.getElementById(id);
+function renderTree(){
+  const root = el('templateTree');
+  root.innerHTML = '';
+  const build = (nodes, parent) => {
+    const ul = document.createElement('ul');
+    nodes.forEach(n => {
+      const li = document.createElement('li');
+      const row = document.createElement('div'); row.className = 'tree-item';
+      const name = document.createElement('button'); name.className='tree-name'+(state.selectedId===n.id?' selected':''); name.textContent=n.name;
+      name.onclick = ()=> selectNode(n.id);
+      row.appendChild(name);
+      ['↑','↓','✎','🗑'].forEach((sym,i)=>{
+        const b=document.createElement('button'); b.textContent=sym; b.className='small';
+        b.onclick=()=>treeAction(n.id,i); row.appendChild(b);
+      });
+      li.appendChild(row);
+      if (n.children?.length) build(n.children, li);
+      ul.appendChild(li);
+    });
+    parent.appendChild(ul);
+  };
+  build(state.nodes, root);
+}
+
+function selectNode(id){
+  state.selectedId=id;
+  const node=findNodeById(state.nodes,id);
+  if(node?.type==='template') loadTemplateToEditor(node);
+  renderTree(); saveState();
+}
+
+function findNodeById(nodes,id,parent=null){
+  for(const n of nodes){
+    if(n.id===id) return n;
+    if(n.children){ const x=findNodeById(n.children,id,n); if(x) return x; }
+  }
+  return null;
+}
+
+function findWithParent(nodes,id,parent=null){
+  for(let i=0;i<nodes.length;i++){
+    const n=nodes[i]; if(n.id===id) return {node:n,parent,list:nodes,index:i};
+    if(n.children){ const x=findWithParent(n.children,id,n); if(x) return x; }
+  } return null;
+}
+
+// ======================= Template Generation =======================
+function extractPlaceholders(text){
+  const m=[...(text||'').matchAll(/\[([^\]]+)\]/g)].map(x=>x[1]);
+  return [...new Set(m)];
+}
+function applyPlaceholders(text){
+  return (text||'').replace(/\[([^\]]+)\]/g, (_, key)=> state.placeholders[key]?.trim() ? state.placeholders[key].trim() : `[${key}]`);
+}
+function loadTemplateToEditor(t){
+  state.currentSourceTemplate = JSON.parse(JSON.stringify(t));
+  el('templateNotes').value=t.notes||'';
+  renderPlaceholderPanel(t);
+  regenerateFromTemplate();
+}
+function regenerateFromTemplate(){
+  if(!state.currentSourceTemplate) return;
+  el('emailSubject').value = applyPlaceholders(state.currentSourceTemplate.subject||'');
+  el('emailBody').innerHTML = applyPlaceholders(state.currentSourceTemplate.body||'');
+  setStatus('Template regenerated.');
+}
+function renderPlaceholderPanel(t){
+  const panel=el('placeholderPanel'); panel.innerHTML='';
+  const keys=new Set(['Name']);
+  extractPlaceholders((t.subject||'')+' '+(t.body||'')).forEach(k=>keys.add(k));
+  keys.forEach(k=>{
+    if(state.placeholders[k]===undefined) state.placeholders[k]='';
+    const d=document.createElement('div'); d.className='field';
+    d.innerHTML=`<label>${k}</label><input type="text" data-ph="${k}" value="${escapeHtml(state.placeholders[k])}">`;
+    panel.appendChild(d);
+  });
+  panel.querySelectorAll('input[data-ph]').forEach(inp=>inp.oninput=(e)=>{
+    const key=e.target.dataset.ph; state.placeholders[key]=e.target.value;
+    if(key==='Name') el('customerName').value=e.target.value;
+    regenerateFromTemplate(); saveState();
+  });
+}
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ======================= Rich Text Editor =======================
+function exec(cmd,val=null){ document.execCommand(cmd,false,val); el('emailBody').focus(); }
+
+// ======================= Import / Export =======================
+function exportData(){
+  const blob=new Blob([JSON.stringify({nodes:state.nodes},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='library_templates.json'; a.click();
+  URL.revokeObjectURL(a.href); setStatus('Templates exported.');
+}
+function importData(file){
+  const fr=new FileReader(); fr.onload=()=>{
+    try{ const data=JSON.parse(fr.result); if(!Array.isArray(data.nodes)) throw new Error(); state.nodes=data.nodes; saveState(); renderTree(); setStatus('Templates imported.'); }
+    catch{ setStatus('Import failed: invalid JSON.', true); }
+  }; fr.readAsText(file);
+}
+
+// ======================= HST Calculator =======================
+function round2(n){ return Math.round((n+Number.EPSILON)*100)/100; }
+function calcHST(){
+  const p=+el('preTax').value||0, q=Math.max(1,+el('quantity').value||1), r=+el('hstRate').value||0;
+  const da=Math.max(0,+el('discountAmount').value||0), dp=Math.max(0,+el('discountPercent').value||0);
+  const subtotal=round2(p*q);
+  const disc=round2(da + (subtotal*dp/100));
+  const taxable=round2(Math.max(0,subtotal-disc));
+  const hst=round2(taxable*r/100);
+  const total=round2(taxable+hst);
+  el('calcResults').innerHTML = `
+    <div class="result-row"><span>Subtotal</span><strong>$${subtotal.toFixed(2)}</strong></div>
+    <div class="result-row"><span>Discount</span><strong>-$${disc.toFixed(2)}</strong></div>
+    <div class="result-row"><span>Taxable Amount</span><strong>$${taxable.toFixed(2)}</strong></div>
+    <div class="result-row"><span>HST Amount</span><strong>$${hst.toFixed(2)}</strong></div>
+    <div class="result-row"><span>Total</span><strong>$${total.toFixed(2)}</strong></div>`;
+  state.hst={preTax:p,quantity:q,hstRate:r,discountAmount:da,discountPercent:dp}; saveState();
+  return {subtotal,hst,total,rate:r};
+}
+
+// ======================= Actions =======================
+function treeAction(id,action){
+  const info=findWithParent(state.nodes,id); if(!info) return;
+  if(action===0 && info.index>0) [info.list[info.index-1],info.list[info.index]]=[info.list[info.index],info.list[info.index-1]];
+  if(action===1 && info.index<info.list.length-1) [info.list[info.index+1],info.list[info.index]]=[info.list[info.index],info.list[info.index+1]];
+  if(action===2){ const nm=prompt('Rename item:', info.node.name); if(nm) info.node.name=nm.trim(); }
+  if(action===3){ if(confirm('Delete this item and its children/templates?')) info.list.splice(info.index,1); }
+  renderTree(); saveState();
+}
+
+function selectedTemplate(){ const n=findNodeById(state.nodes,state.selectedId); return n?.type==='template'?n:null; }
+function setStatus(msg,isErr=false){ const s=el('statusMsg'); s.textContent=msg; s.style.color=isErr?'#991b1b':'#0e7490'; }
+
+// ======================= Init + Events =======================
+loadState();
+el('customerName').value = state.placeholders.Name || '';
+el('customerName').oninput=(e)=>{ state.placeholders.Name=e.target.value; regenerateFromTemplate(); saveState(); };
+
+renderTree();
+if(!state.selectedId){
+  const first=(function findFirst(nodes){for(const n of nodes){ if(n.type==='template')return n; if(n.children){const x=findFirst(n.children); if(x)return x;}}})(state.nodes);
+  if(first) selectNode(first.id);
+}
+
+el('addCategoryBtn').onclick=()=>{ const n=prompt('Category name:'); if(!n) return; state.nodes.push({id:uid(),type:'category',name:n,children:[]}); renderTree(); saveState(); };
+el('addTemplateBtn').onclick=()=>{
+  const info=findWithParent(state.nodes,state.selectedId)||{node:null};
+  const target = info?.node?.type==='category' ? info.node : state.nodes[0];
+  if(!target || target.type!=='category') return setStatus('Select or create a category first.', true);
+  const nm=prompt('Template name:','New Template'); if(!nm) return;
+  target.children.push(templateNode(nm,'Subject here','', 'Hello [Name],<br><br>Your message here.<br><br>[Staff Name]'));
+  renderTree(); saveState(); setStatus('New template created.');
+};
+el('editTemplateBtn').onclick=()=>{ const t=selectedTemplate(); if(!t) return setStatus('Select a template to edit.', true); const nm=prompt('Template name:',t.name); if(nm) t.name=nm; t.notes=el('templateNotes').value; saveState(); renderTree(); setStatus('Template updated.'); };
+el('duplicateTemplateBtn').onclick=()=>{ const info=findWithParent(state.nodes,state.selectedId); if(!info||info.node.type!=='template') return setStatus('Select a template to duplicate.', true); info.list.splice(info.index+1,0,{...JSON.parse(JSON.stringify(info.node)),id:uid(),name:info.node.name+' (Copy)'}); renderTree(); saveState(); setStatus('Template duplicated.'); };
+el('deleteTemplateBtn').onclick=()=>{ const info=findWithParent(state.nodes,state.selectedId); if(!info||info.node.type!=='template') return setStatus('Select a template to delete.', true); if(confirm('Delete this template?')){ info.list.splice(info.index,1); state.selectedId=null; renderTree(); saveState(); setStatus('Template deleted.'); } };
+el('saveTemplateBtn').onclick=()=>{ const t=selectedTemplate(); if(!t) return setStatus('Select a template to save.', true); t.subject=el('emailSubject').value; t.body=el('emailBody').innerHTML; t.notes=el('templateNotes').value; saveState(); setStatus('Template saved.'); };
+el('resetDefaultsBtn').onclick=()=>{ if(confirm('Reset all templates to defaults? This will overwrite custom templates.')){ state.nodes=JSON.parse(JSON.stringify(DEFAULT_DATA.nodes)); state.selectedId=null; renderTree(); const first=(function f(ns){for(const n of ns){if(n.type==='template')return n;if(n.children){const x=f(n.children);if(x)return x;}}})(state.nodes); if(first) selectNode(first.id); saveState(); setStatus('Templates reset to defaults.'); } };
+el('exportBtn').onclick=exportData;
+el('importBtn').onclick=()=>el('importFile').click();
+el('importFile').onchange=(e)=>{ if(e.target.files[0]) importData(e.target.files[0]); e.target.value=''; };
+el('regenerateBtn').onclick=regenerateFromTemplate;
+el('clearEditorBtn').onclick=()=>{ el('emailSubject').value=''; el('emailBody').innerHTML=''; setStatus('Editor cleared.'); };
+el('copySubjectBtn').onclick=async()=>{ await navigator.clipboard.writeText(el('emailSubject').value); setStatus('Subject copied!'); };
+el('copyBodyBtn').onclick=async()=>{ try{ await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([el('emailBody').innerHTML],{type:'text/html'})})]); setStatus('Email body copied (rich text)!'); }catch{ await navigator.clipboard.writeText(el('emailBody').innerText); setStatus('Clipboard fallback used (plain text).'); } };
+el('copyPlainBtn').onclick=async()=>{ await navigator.clipboard.writeText(el('emailBody').innerText); setStatus('Plain text copied!'); };
+
+document.querySelectorAll('.editor-toolbar button[data-cmd]').forEach(b=>b.onclick=()=>exec(b.dataset.cmd));
+el('insertLinkBtn').onclick=()=>{ const url=prompt('Enter URL:'); if(url) exec('createLink',url); };
+
+document.querySelectorAll('.tab-btn').forEach(btn=>btn.onclick=()=>{
+  document.querySelectorAll('.tab-btn').forEach(b=>{b.classList.remove('active'); b.setAttribute('aria-selected','false');});
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active'); btn.setAttribute('aria-selected','true'); el(btn.dataset.tab).classList.add('active');
+});
+
+['preTax','quantity','hstRate','discountAmount','discountPercent'].forEach(id=>{ el(id).value = state.hst[id] ?? el(id).value; el(id).oninput=calcHST;});
+el('copySummaryBtn').onclick=async()=>{ const r=calcHST(); const txt=`Subtotal: $${r.subtotal.toFixed(2)}\nHST ${r.rate}%: $${r.hst.toFixed(2)}\nTotal: $${r.total.toFixed(2)}`; await navigator.clipboard.writeText(txt); setStatus('Total summary copied!'); };
+calcHST();
+</script>
+</body>
+</html>
